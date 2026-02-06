@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
+    /* SIDEBAR CUSTOM */
+    .sidebar { height: 100vh; width: 240px; position: fixed; background: #2c3e50; color: white; padding: 20px; transition: 0.3s; z-index: 100;}
+    .logo-container { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .sidebar-logo { 
+      width: 85px; height: 85px; object-fit: contain; background: white; 
+      padding: 8px; border-radius: 18px; border: 3px solid #3498db; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+    }
+    .main { margin-left: 250px; padding: 20px; transition: 0.3s; }
+    .card-custom { border: none; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+    
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; height: auto; position: relative; }
+      .main { margin-left: 0; }
+    }
+
+    /* SISTEM CETAK FAKTUR & LAPORAN */
+    #print-area { display: none; }
+    @media print {
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area { display: block !important; position: absolute; left: 0; top: 0; width: 80mm; }
+      .no-print { display: none !important; }
+      #sect-laporan, #sect-laporan * { visibility: visible; } /* Agar laporan bisa diprint penuh */
+    }
+  </style>
+</head>
+<body>
+
+<div class="sidebar no-print">
+  <div class="logo-container">
+    <img src="https://i.ibb.co.com/RG8wTX9W/Logo-Bumdes.png" class="sidebar-logo mb-2">
+    <h5 class="fw-bold mt-2">BUMDES DIGITAL</h5>
+    <small class="text-info">Sistem Keuangan Desa</small>
+  </div>
+  <button class="btn btn-outline-light w-100 mb-2 text-start border-0 py-2" onclick="show('dashboard')">📊 Dashboard</button>
+  <button class="btn btn-outline-light w-100 mb-2 text-start border-0 py-2" onclick="show('input')">📝 Input Transaksi</button>
+  <button class="btn btn-outline-light w-100 mb-2 text-start border-0 py-2" onclick="show('laporan')">🖨️ Cetak Laporan</button>
+</div>
+
+<div class="main">
+  
+  <div id="sect-dashboard">
+    <div class="row mb-4 no-print">
+      <div class="col-md-4 mb-3">
+        <div class="card card-custom p-3 border-top border-success border-4 text-center">
+          <small class="text-muted fw-bold text-uppercase">Total Pemasukan</small>
+          <h3 id="txt-masuk-global" class="fw-bold text-success">Rp 0</h3>
+        </div>
+      </div>
+      <div class="col-md-4 mb-3">
+        <div class="card card-custom p-3 border-top border-danger border-4 text-center">
+          <small class="text-muted fw-bold text-uppercase">Total Pengeluaran</small>
+          <h3 id="txt-keluar-global" class="fw-bold text-danger">Rp 0</h3>
+        </div>
+      </div>
+      <div class="col-md-4 mb-3">
+        <div class="card card-custom p-3 border-top border-primary border-4 text-center">
+          <small class="text-muted fw-bold text-uppercase">Laba Bersih</small>
+          <h3 id="txt-global" class="fw-bold text-primary">Rp 0</h3>
+          <div id="badge-status" class="badge p-2 mx-auto mt-1">MEMUAT...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-4 no-print">
+      <div class="col-12">
+        <div class="card card-custom p-4 border-start border-warning border-4 bg-white shadow-sm">
+          <h6 class="fw-bold text-dark mb-3">🏛️ Estimasi Pembagian Laba (AD/ART)</h6>
+          <div class="row text-center">
+            <div class="col-md-4"><small>Modal (30%)</small><h5 id="txt-alokasi-modal" class="fw-bold">Rp 0</h5></div>
+            <div class="col-md-4"><small>PAdes (35%)</small><h5 id="txt-alokasi-pades" class="fw-bold text-primary">Rp 0</h5></div>
+            <div class="col-md-4"><small>Pengelola (35%)</small><h5 id="txt-alokasi-pengelola" class="fw-bold text-info">Rp 0</h5></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-4 no-print">
+      <div class="col-12"><div class="card card-custom p-3"><canvas id="myChart" height="120"></canvas></div></div>
+    </div>
+    <h6 class="fw-bold mb-3 no-print">Saldo per Unit Usaha</h6>
+    <div id="unit-grid" class="row no-print"></div>
+  </div>
+
+  <div id="sect-input" style="display:none;">
+    <div class="card card-custom p-4 mx-auto no-print" style="max-width:600px;">
+      <h4 class="mb-4 fw-bold">Input Transaksi Baru</h4>
+      <form id="formTrx">
+        <label class="form-label">Unit Usaha</label>
+        <select name="unit" class="form-select mb-3">
+          <option value="Jasa">Perdagangan & Jasa</option>
+          <option value="Internet">Internet Desa</option>
+          <option value="Ketapang Ayam">Unit Ketapang Ayam Petelur</option>
+          <option value="Sampah">Unit Pengelolaan Sampah</option>
+        </select>
+        <label class="form-label">Jenis</label>
+        <select name="jenis" class="form-select mb-3">
+          <option value="Masuk">Pemasukan (Kredit)</option>
+          <option value="Keluar">Pengeluaran (Debit)</option>
+        </select>
+        <label class="form-label">Sumber Kas</label>
+        <select name="kas" class="form-select mb-3">
+          <option>Kas Tunai</option>
+          <option>Bank BJB</option>
+          <option>Bank BRI</option>
+        </select>
+        <label class="form-label">Nominal (Rp)</label>
+        <input type="number" name="nominal" class="form-control mb-3" required>
+        <label class="form-label">Keterangan</label>
+        <textarea name="keterangan" class="form-control mb-3"></textarea>
+        <button type="button" onclick="submitForm()" id="btnSave" class="btn btn-primary w-100 p-3 fw-bold">SIMPAN & CETAK FAKTUR</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="sect-laporan" style="display:none;">
+    <div class="card card-custom p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <h4 class="fw-bold m-0">Laporan Transaksi</h4>
+        <div>
+          <button class="btn btn-danger" onclick="window.print()">📥 Download PDF</button>
+        </div>
+      </div>
+      
+      <div class="row mb-4 no-print">
+        <div class="col-md-4">
+          <label class="small fw-bold">Dari Tanggal:</label>
+          <input type="date" id="filter-start" class="form-control" onchange="filterLaporan()">
+        </div>
+        <div class="col-md-4">
+          <label class="small fw-bold">Sampai Tanggal:</label>
+          <input type="date" id="filter-end" class="form-control" onchange="filterLaporan()">
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-dark">
+            <tr><th>Tgl</th><th>Unit</th><th>Jenis</th><th>Kas</th><th>Nominal</th><th>Keterangan</th></tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="print-area">
+  <div style="width: 75mm; padding: 2mm; font-family: monospace; font-size: 12px;">
+    <center>
+      <img src="https://i.ibb.co.com/RG8wTX9W/Logo-Bumdes.png" style="width: 50px; margin-bottom: 5px; background:white; padding:5px; border-radius:5px;">
+      <h4 style="margin:0;">BUMDES DIGITAL</h4>
+      <p style="font-size: 10px;">Bukti Transaksi Resmi</p>
+      <p>--------------------------------</p>
+    </center>
+    <table width="100%">
+      <tr><td>No</td><td id="f-nomor" align="right"></td></tr>
+      <tr><td>Tgl</td><td id="f-tgl" align="right"></td></tr>
+      <tr><td>Unit</td><td id="f-unit" align="right"></td></tr>
+    </table>
+    <p>--------------------------------</p>
+    <table width="100%" style="font-weight:bold; font-size:14px;">
+      <tr><td id="f-jenis"></td><td id="f-nominal" align="right"></td></tr>
+    </table>
+    <p style="margin-top:10px;">Ket: <span id="f-ket"></span></p>
+    <p>--------------------------------</p>
+    <center><p style="font-size:10px;">Simpan sebagai bukti sah.<br>Terima Kasih</p></center>
+  </div>
+</div>
+
+<script>
+  let chart;
+  let allData = [];
+
+  function show(id) {
+    ['sect-dashboard','sect-input','sect-laporan'].forEach(s => document.getElementById(s).style.display = 'none');
+    document.getElementById('sect-' + id).style.display = 'block';
+    if(id === 'dashboard') loadDashboard();
+    if(id === 'laporan') loadLaporan();
+  }
+
+  function loadDashboard() {
+    google.script.run.withSuccessHandler(res => {
+      document.getElementById('txt-masuk-global').innerText = "Rp " + res.global.masuk.toLocaleString();
+      document.getElementById('txt-keluar-global').innerText = "Rp " + res.global.keluar.toLocaleString();
+      document.getElementById('txt-global').innerText = "Rp " + res.laba.toLocaleString();
+      
+      let b = document.getElementById('badge-status');
+      b.innerHTML = res.laba >= 0 ? "SURPLUS" : "DEFISIT";
+      b.className = "badge p-2 mx-auto mt-1 " + (res.laba >= 0 ? "bg-success" : "bg-danger");
+
+      document.getElementById('txt-alokasi-modal').innerText = "Rp " + res.alokasi.modal.toLocaleString();
+      document.getElementById('txt-alokasi-pades').innerText = "Rp " + res.alokasi.pades.toLocaleString();
+      document.getElementById('txt-alokasi-pengelola').innerText = "Rp " + res.alokasi.pengelola.toLocaleString();
+
+      let html = ""; let labels = []; let val = [];
+      for (let k in res.units) {
+        labels.push(k); val.push(res.units[k].masuk);
+        let s = res.units[k].masuk - res.units[k].keluar;
+        html += `<div class="col-md-3 mb-3"><div class="card card-custom p-3 border-start border-primary border-4 shadow-sm">
+          <small class="fw-bold text-muted text-uppercase">${k}</small>
+          <h5 class="mb-0">Rp ${s.toLocaleString()}</h5></div></div>`;
+      }
+      document.getElementById('unit-grid').innerHTML = html;
+      renderChart(labels, val);
+    }).getDashboardSummary();
+  }
+
+  function renderChart(l, v) {
+    if(chart) chart.destroy();
+    chart = new Chart(document.getElementById('myChart'), {
+      type: 'bar', data: { labels: l, datasets: [{ label: 'Pemasukan Unit', data: v, backgroundColor: '#3498db' }] },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+
+  function loadLaporan() {
+    google.script.run.withSuccessHandler(data => {
+      allData = data.slice(1); // Simpan semua data kecuali header
+      renderTable(allData);
+    }).getDataLaporan();
+  }
+
+  function renderTable(data) {
+    let html = "";
+    data.forEach(row => {
+      html += `<tr><td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td><td>${row[3]}</td><td>${Number(row[4]).toLocaleString()}</td><td>${row[5]}</td></tr>`;
+    });
+    document.getElementById('table-body').innerHTML = html;
+  }
+
+  function filterLaporan() {
+    let start = document.getElementById('filter-start').value;
+    let end = document.getElementById('filter-end').value;
+    if(!start || !end) return;
+
+    let filtered = allData.filter(row => {
+      let date = new Date(row[0]).getTime();
+      return date >= new Date(start).getTime() && date <= new Date(end).getTime();
+    });
+    renderTable(filtered);
+  }
+
+  function submitForm() {
+    let btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.innerHTML = "Menyimpan...";
+    google.script.run.withSuccessHandler(res => {
+      if(res.status === "Sukses") {
+        document.getElementById('f-nomor').innerText = res.data.nomor;
+        document.getElementById('f-tgl').innerText = res.data.tanggal;
+        document.getElementById('f-unit').innerText = res.data.unit;
+        document.getElementById('f-jenis').innerText = res.data.jenis;
+        document.getElementById('f-nominal').innerText = "Rp " + res.data.nominal.toLocaleString();
+        document.getElementById('f-ket').innerText = res.data.keterangan;
+        window.print();
+        document.getElementById('formTrx').reset();
+        btn.disabled = false; btn.innerHTML = "SIMPAN & CETAK FAKTUR";
+        show('dashboard');
+      }
+    }).processForm(document.getElementById('formTrx'));
+  }
+
+  window.onload = loadDashboard;
+</script>
+</body>
+</html>
